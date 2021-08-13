@@ -1,11 +1,107 @@
-const express =require('express'); //includes/requests express.js
-const app = express(); // call the express method
+const express =require('express');//includes express
+const app = express(); //calls the express method
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+//cross origin resource sharing
+const cors = require('cors');//cross origin restriction to be waived
+const bcrypt = require('bcryptjs');
+const config = require('./config.json');
+const product = require('./Products.json');
+const Product = require('./models/products.js');
 
 const port = 5000;
 
-// Get method to access
+//use ends here
+app.use((req,res,next)=>{
+ console.log(`${req.method} request ${req.url}`);
+  next();
+})
+
+app.use(bodyParser.json());//calling body parser method
+app.use(bodyParser.urlencoded({extended:false}));//using default
+
+app.use(cors()); //calling cors method
+
+app.get('/',(req,res)=> res.send('Hello! I am from the backend'))
+
+ mongoose.connect(`mongodb+srv://${config.MONGO_USER}:${config.MONGO_PASSWORD}@cluster0.${config.MONGO_CLUSTER_NAME}.mongodb.net/Sample?retryWrites=true&w=majority`, {useNewUrlParser: true,useUnifiedTopology: true})
+.then(()=>console.log('DB connected!'))
+.catch(err=>{
+  console.log(`DBConnectionError:${err.message}`);
+});
+
+//post method to write or create a document in mongodb
+app.post('/addProduct',(req,res)=>{
+  const dbProduct = new Product({
+    _id : new mongoose.Types.ObjectId,
+    name : req.body.name,
+    price: req.body.price,
+    image_url : req.body.imageUrl
+  });
+  //save to the database and notify the user
+  dbProduct.save().then(result=>{
+    res.send(result);
+  }).catch(err=>res.send(err));
+})
+
+//retrieve objects or documents from the database
+app.get('/allProductsFromDB',(req,res)=>{
+  Product.find().then(result=>{
+    res.send(result);
+  })
+})
+
+//patch is to update the details of the objects
+app.patch('/updateProduct/:id',(req,res)=>{
+  const idParam = req.params.id;
+  Product.findById(idParam,(err,product)=>{
+    if (product['user_id'] == req.body.userId){
+      const updatedProduct = {
+        name : req.body.name,
+        price : req.body.price,
+        image_url:req.body.imageURl
+      }
+      Product.updateOne({_id:idParam}, updatedProduct).
+      then(result=>{
+        res.send(result);
+      }).catch(err=> res.send(err));
+    } else{
+      res.send('error: product not found')
+    }//else
+  })
+})
+
+//delete a product from database
+app.delete('/deleteProduct/:id',(req,res)=>{
+  const idParam = req.params.id;
+  Product. findOne({_id:idParam}, (err,product)=>{
+    if(product){
+      Product.deleteOne({_id:idParam},err=>{
+        res.send('deleted');
+    });
+    } else {
+      res.send('not found');
+    } //else
+  }).catch(err=> res.send(err));
+});//delete
 
 
+//get method to access data from Products.json
+//routing to the endpoint
+app.get('/allProducts', (req,res)=>{
+  res.json(product);
+})
 
-// Listening to port
-app.listen(port,()=>console.log(`My fullstack application is listening on port ${port} `))
+app.get('/products/p=:id',(req,res)=>{
+  const idParam = req.params.id;
+  for (let i =0; i<product.length; i++){
+    if (idParam.toString() === product[i].id.toString()){
+      res.json(product[i]);
+    }
+  }
+});
+
+
+//listening to port
+
+app.listen(port,()=>console.log(`My fullstack application is listening on port ${port}`))
